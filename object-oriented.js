@@ -56,7 +56,14 @@ class Branch {
   }
 
   stopWind() {
-    if (!this.initialEnd.x) {
+    if (
+      // stop the function if it's close enough
+      Math.abs(this.end.x - this.initialEnd.x) < 1 &&
+      Math.abs(this.end.y - this.initialEnd.y) < 1
+    ) {
+      this.end.x = this.initialEnd.x;
+      this.end.y = this.initialEnd.y;
+
       return;
     }
 
