@@ -1,121 +1,124 @@
-const myCanvas = document.getElementById("my-canvas");
-const ctx = myCanvas.getContext("2d");
+const canvas = document.getElementById("my-canvas");
+const ctx = canvas.getContext("2d");
 
-const angleChangeThreshold = 20;
-const lengthChangeThreshold = 0.6;
-const len = 300;
-const angle = 90;
-
-let lastTime = 0;
-let jitter = false;
-let level = 0;
-
-const branches = [];
+let tree = [];
+let leaves = [];
+let count = 0;
 
 class Branch {
-  constructor(startX, startY, length, angle, level) {
-    this.startX = startX;
-    this.startY = startY;
-    this.length = length;
-    this.angle = angle;
-    this.level = level;
-
-    this.grown = false;
-
-    this.angleRadians = (this.angle / 180) * Math.PI;
-    this.endX = this.startX - Math.cos(this.angleRadians) * this.length;
-    this.endY = this.startY - Math.sin(this.angleRadians) * this.length;
-    this.previousEndX = this.endX;
-    this.previousEndY = this.endY;
-    this.previousStartX = this.startX;
-    this.previousStartY = this.startY;
+  constructor(start, end) {
+    this.start = start;
+    this.end = end;
+    this.finished = false;
   }
 
-  draw(ctx) {
+  show() {
     ctx.beginPath();
-    ctx.moveTo(this.startX, this.startY);
-    ctx.lineTo(this.endX, this.endY);
+    ctx.moveTo(this.start.x, this.start.y);
+    ctx.lineTo(this.end.x, this.end.y);
     ctx.strokeStyle = "white";
+    ctx.lineWidth = 2;
     ctx.stroke();
   }
 
-  generateBranches() {
-    const rightBranch = new Branch(
-      this.endX,
-      this.endY,
-      this.length * lengthChangeThreshold,
-      this.angle + angleChangeThreshold,
-      this.level + 1
-    );
-    const leftBranch = new Branch(
-      this.endX,
-      this.endY,
-      this.length * lengthChangeThreshold,
-      this.angle - angleChangeThreshold,
-      this.level + 1
-    );
+  branchA() {
+    const dir = this.end
+      .subtract(this.start)
+      .rotate(-Math.PI / 6)
+      .multiply(0.67);
+    return new Branch(this.end, this.end.add(dir));
+  }
 
-    return { rightBranch, leftBranch };
+  branchB() {
+    const dir = this.end
+      .subtract(this.start)
+      .rotate(Math.PI / 6)
+      .multiply(0.67);
+    return new Branch(this.end, this.end.add(dir));
   }
 
   jitter() {
-    const randomX = Math.random() - 0.5;
-    const randomY = Math.random() - 0.5;
-
-    this.endX += randomX;
-    this.endY += randomY;
-  }
-
-  reset() {
-    this.endX = this.previousEndX;
-    this.endY = this.previousEndY;
+    const offset = 2;
+    this.end.x += Math.random() * offset - offset / 2;
+    this.end.y += Math.random() * offset - offset / 2;
   }
 }
 
-const branch = new Branch(
-  myCanvas.clientWidth / 2,
-  myCanvas.clientHeight,
-  len,
-  angle,
-  1
-);
+class Vector {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+  }
 
-branches.push(branch);
+  subtract(v) {
+    return new Vector(this.x - v.x, this.y - v.y);
+  }
 
-const render = () => {
-  ctx.clearRect(0, 0, myCanvas.width, myCanvas.height);
+  add(v) {
+    return new Vector(this.x + v.x, this.y + v.y);
+  }
 
-  for (let eachBranch of branches) {
-    eachBranch.draw(ctx);
+  multiply(scalar) {
+    return new Vector(this.x * scalar, this.y * scalar);
+  }
 
-    if (jitter) {
-      eachBranch.jitter();
-    } else {
-      eachBranch.reset();
+  rotate(angle) {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    return new Vector(this.x * cos - this.y * sin, this.x * sin + this.y * cos);
+  }
+}
+
+function setup() {
+  const a = new Vector(canvas.width / 2, canvas.height);
+  const b = new Vector(canvas.width / 2, canvas.height - 150);
+  const root = new Branch(a, b);
+  tree.push(root);
+
+  draw();
+}
+
+function mousePressed() {
+  for (let i = tree.length - 1; i >= 0; i--) {
+    if (!tree[i].finished) {
+      tree.push(tree[i].branchA());
+      tree.push(tree[i].branchB());
+    }
+    tree[i].finished = true;
+  }
+  count++;
+
+  if (count === 6) {
+    for (let i = 0; i < tree.length; i++) {
+      if (!tree[i].finished) {
+        let leaf = { x: tree[i].end.x, y: tree[i].end.y };
+        leaves.push(leaf);
+      }
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  for (let i = 0; i < tree.length; i++) {
+    tree[i].show();
+    if (count > 0) {
+      tree[i].jitter();
     }
   }
 
-  requestAnimationFrame(render);
-};
-
-const handleGrow = () => {
-  for (let i = branches.length - 1; i >= 0; i--) {
-    if (!branches[i].grown) {
-      const { rightBranch, leftBranch } = branches[i].generateBranches();
-      branches.push(rightBranch);
-      branches.push(leftBranch);
-    }
-
-    branches[i].grown = true;
+  for (let i = 0; i < leaves.length; i++) {
+    ctx.fillStyle = "rgba(255, 0, 100, 0.5)";
+    ctx.beginPath();
+    ctx.arc(leaves[i].x, leaves[i].y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    leaves[i].y += Math.random() * 2;
   }
-};
 
-const handleBreak = () => {
-  jitter = true;
-};
+  requestAnimationFrame(draw);
+}
 
-const handleReset = () => {
-  jitter = false;
-};
+setup();
 
-render();
+canvas.addEventListener("mousedown", mousePressed);
