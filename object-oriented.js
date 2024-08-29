@@ -5,11 +5,15 @@ let tree = [];
 let leaves = [];
 let count = 0;
 
+let wind = false;
+
 class Branch {
-  constructor(start, end) {
+  constructor(start, end, level) {
     this.start = start;
     this.end = end;
     this.finished = false;
+    this.level = level;
+    this.initialEnd = new Vector(end.x, end.y);
   }
 
   show() {
@@ -26,7 +30,7 @@ class Branch {
       .subtract(this.start)
       .rotate(-Math.PI / 6)
       .multiply(0.67);
-    return new Branch(this.end, this.end.add(dir));
+    return new Branch(this.end, this.end.add(dir), this.level + 1);
   }
 
   branchB() {
@@ -34,13 +38,35 @@ class Branch {
       .subtract(this.start)
       .rotate(Math.PI / 6)
       .multiply(0.67);
-    return new Branch(this.end, this.end.add(dir));
+    return new Branch(this.end, this.end.add(dir), this.level + 1);
   }
 
   jitter() {
     const offset = 2;
     this.end.x += Math.random() * offset - offset / 2;
     this.end.y += Math.random() * offset - offset / 2;
+  }
+
+  applyWind() {
+    const windStrength = 0.15; // Control the strength of the wind
+    const windDirectionX = Math.sin(Date.now() / 1000) * windStrength; // Wind changes over time
+    const windDirectionY = Math.cos((Date.now() / 1000) * 3) * windStrength; // Wind changes over time
+    this.end.x += windDirectionX * this.level; // Apply wind effect based on windFactor
+    this.end.y += windDirectionY * this.level; // Apply wind effect based on windFactor
+  }
+
+  stopWind() {
+    if (!this.initialEnd.x) {
+      return;
+    }
+
+    const transitionSpeed = 0.01; // Speed of transition back
+    const difVector = this.initialEnd
+      .subtract(this.end)
+      .multiply(transitionSpeed);
+
+    this.end.x += difVector.x;
+    this.end.y += difVector.y;
   }
 }
 
@@ -72,13 +98,13 @@ class Vector {
 function setup() {
   const a = new Vector(canvas.width / 2, canvas.height);
   const b = new Vector(canvas.width / 2, canvas.height - 150);
-  const root = new Branch(a, b);
+  const root = new Branch(a, b, 1);
   tree.push(root);
 
   draw();
 }
 
-function mousePressed() {
+function handleGrow() {
   for (let i = tree.length - 1; i >= 0; i--) {
     if (!tree[i].finished) {
       tree.push(tree[i].branchA());
@@ -98,13 +124,23 @@ function mousePressed() {
   }
 }
 
+function handleWind() {
+  wind = true;
+}
+
+function handleStopWind() {
+  wind = false;
+}
+
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   for (let i = 0; i < tree.length; i++) {
     tree[i].show();
-    if (count > 0) {
-      tree[i].jitter();
+    if (wind) {
+      tree[i].applyWind();
+    } else {
+      tree[i].stopWind();
     }
   }
 
@@ -120,5 +156,3 @@ function draw() {
 }
 
 setup();
-
-canvas.addEventListener("mousedown", mousePressed);
